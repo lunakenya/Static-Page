@@ -1,3 +1,4 @@
+
 name: Deploy Static HTML to EC2
 
 on:
