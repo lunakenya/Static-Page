@@ -3,35 +3,39 @@ name: Deploy Static HTML to EC2
 on:
   push:
     branches:
-      - main  # Trigger only on the main branch
+      - main  # Ejecuta solo en la rama main 
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Clone the repository
+    # 1. Clona el repositorio
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # 2. Add the SSH key to the agent
-    - name: Add SSH key to agent
+    # 2. Crear el archivo .pem desde el secreto
+    - name: Create SSH key
       run: |
-        eval $(ssh-agent -s)  # Start the SSH agent
-        echo "${{ secrets.EC2_SSH_KEY }}" | ssh-add -  # Add the SSH key directly from the secret
+        echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
+        chmod 600 ec2_key.pem  # Asegúrate de que la clave tenga permisos adecuados
 
-    # 3. Copy files to the EC2 server
+    # 3. Copia los archivos al servidor EC2
     - name: Deploy HTML to EC2
       run: |
-        scp -o "StrictHostKeyChecking=no" \
+        scp -i ec2_key.pem -o "StrictHostKeyChecking=no" \
           -o "UserKnownHostsFile=/dev/null" \
-          -r ./index.html \
+          -r ./index.html\
           ${{ secrets.EC2_USER }}@${{ secrets.EC2_INSTANCE_IP }}:${{ secrets.DEPLOY_PATH }}
 
-    # 4. Reload Nginx on the EC2 instance
+    # 4. Reinicia Nginx en la instancia EC2
     - name: Reload Nginx
       run: |
-        ssh -o "StrictHostKeyChecking=no" \
+        ssh -i ec2_key.pem -o "StrictHostKeyChecking=no" \
           -o "UserKnownHostsFile=/dev/null" \
           ${{ secrets.EC2_USER }}@${{ secrets.EC2_INSTANCE_IP }} \
           "sudo systemctl reload nginx"
+
+    # 5. Limpia el archivo de la clave
+    - name: Clean up
+      run: rm -f ec2_key.pem
