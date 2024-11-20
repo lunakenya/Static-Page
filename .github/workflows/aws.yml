@@ -3,32 +3,36 @@ name: Deploy Static HTML to EC2
 on:
   push:
     branches:
-      - main  # Ejecuta solo en la rama main 
+      - main  # Trigger the workflow only on pushes to the main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Clona el repositorio
+    # Step 1: Clone the repository
+    # This step fetches the repository contents to the runner.
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # 2. Crear el archivo .pem desde el secreto
+    # Step 2: Create the SSH key file from the secret
+    # The private SSH key is retrieved from GitHub Secrets and stored in a temporary file.
     - name: Create SSH key
       run: |
-        echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
-        chmod 600 ec2_key.pem  # Asegúrate de que la clave tenga permisos adecuados
+        echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem  # Create the key file
+        chmod 600 ec2_key.pem  # Set secure permissions for the key file
 
-    # 3. Copia los archivos al servidor EC2
+    # Step 3: Deploy HTML file to the EC2 instance
+    # The index.html file is securely copied to the target path on the EC2 server.
     - name: Deploy HTML to EC2
       run: |
         scp -i ec2_key.pem -o "StrictHostKeyChecking=no" \
           -o "UserKnownHostsFile=/dev/null" \
-          -r ./index.html\
+          -r ./index.html \
           ${{ secrets.EC2_USER }}@${{ secrets.EC2_INSTANCE_IP }}:${{ secrets.DEPLOY_PATH }}
 
-    # 4. Reinicia Nginx en la instancia EC2
+    # Step 4: Reload Nginx on the EC2 instance
+    # This ensures that Nginx picks up the new changes by reloading its configuration.
     - name: Reload Nginx
       run: |
         ssh -i ec2_key.pem -o "StrictHostKeyChecking=no" \
@@ -36,6 +40,7 @@ jobs:
           ${{ secrets.EC2_USER }}@${{ secrets.EC2_INSTANCE_IP }} \
           "sudo systemctl reload nginx"
 
-    # 5. Limpia el archivo de la clave
+    # Step 5: Remove the temporary SSH key file
+    # Deletes the key file from the runner to ensure security.
     - name: Clean up
       run: rm -f ec2_key.pem
